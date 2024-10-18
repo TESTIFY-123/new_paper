@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -61,7 +62,10 @@ if __name__ == '__main__':
     
 
     strart_time = time.time()
-    engine.test(mat_loader, test_dir)
+    result=engine.test(mat_loader, test_dir)
+    result=pd.Series(result)
+    result.to_excel('test_result/'+os.path.basename(test_dir)+'.xlsx')
+
     end_time = time.time()
     test_time = end_time-strart_time
     print('cost-time: ',(test_time/len(mat_dataset)))

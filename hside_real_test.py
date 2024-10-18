@@ -26,13 +26,18 @@ if __name__ == '__main__':
 
 
     """Test-Dev"""
-    basefolder = opt.testdir
+    if opt.testdir is None:
+        basefolder = 'real_dataset'
+    else:
+        basefolder = opt.testdir
+
+
   
     mat_datasets = DataLoaderVal(basefolder, 50, None,use2d=engine.get_net().use_2dconv)
     print(len(mat_datasets))
     print('loading finished')
 
- 
+
     mat_loader = DataLoader(
         mat_datasets,
         batch_size=1, shuffle=False,

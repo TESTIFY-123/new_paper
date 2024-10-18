@@ -299,7 +299,6 @@ class LoadMatHSI(object):
         input = torch.from_numpy(input).float()
         # gt = torch.from_numpy(gt[None]).float()  # for 3D net
         gt = torch.from_numpy(gt).float()
-        self.crop=False
         size = 64
         startx = 120
         starty = 110
@@ -337,7 +336,6 @@ class DatasetFromFolder(Dataset):
 
     def __len__(self):
         return len(self.filenames)
-
 
 class MatDataFromFolder(Dataset):
     """Wrap mat data from folder"""
@@ -566,7 +564,7 @@ class MetaRandomDataset(Dataset):
 
 def addNoise2ICVL():
     #srcdir = '/data/HSI_Data/icvl_val_gaussian/gt/'
-    srcdir = '/media/lmy/LMY/cvpr2023/test_96_icvl/'
+
     # noise_sig = [10,30,50,70]
     # noisemodel = AddNoiseNoniid(noise_sig)
     # dstdir ='/media/lmy/LMY/cvpr2023/test_noise_96_icvl/'+'512_mix'
@@ -594,29 +592,59 @@ def addNoise2ICVL():
     # ])
     #add_noniid_noise = AddNoiseNoniid(sigmas)
     #srcimg = '/home/rainy/QRNN3D/data/toy.mat'
+    srcdir1 = '/data/HSI_Data/Pavia'
+    srcdir2 = '/data/HSI_Data/WDC'
     s_sigma = [10,30,50,70]
+    # s_sigma_256=[7,21,35,49]
     #s_sigma = [0]
-    for sigma in s_sigma:
         #dstdir = '/data/HSI_Data/icvl_noise_50/512_mix'+'/'
-        dstdir = '/media/lmy/LMY/cvpr2023/test_noise_96_icvl/'+'512_'+str(sigma)
-        mkdir(dstdir)
-        noisemodel = AddNoise(sigma)
-        c = 0
-        #inpaintingmodel = AddInpaintingHole(0.05, 0.15,1/3)
-        for filename in os.listdir(srcdir):
-            c  = c + 1
-            print(c)
-            filepath = os.path.join(srcdir, filename)
-            mat = loadmat(filepath)
-            srchsi = mat['data'].transpose(2,0,1)
-            
+    noise_model='iid30'
+    dstdir1 = '/data/HSI_Data/test_noise/pavia'+'_256_'+noise_model
+    dstdir2 = '/data/HSI_Data/test_noise/wdc' + '_256_' + noise_model
+    # assert not os.path.exists(dstdir1)
+    os.makedirs(dstdir1)
+    # assert not os.path.exists(dstdir2)
+    os.makedirs(dstdir2)
+
+    noisemodel = AddNoise(30)
+    c = 0
+    # inpaintingmodel = AddInpaintingHole(0.05, 0.15,1/3)
+    for filename in os.listdir(srcdir1):
+        c  = c + 1
+        filepath = os.path.join(srcdir1, filename)
+        try:
+            mat = loadmat(filepath)['data']
+
+            srchsi = mat.transpose(2,0,1)
+            noisyhsi=srchsi.copy()
+
            # inpaintinghsi, mask = inpaintingmodel(srchsi)
-            noisyhsi = noisemodel(srchsi)
+            noisyhsi = noisemodel(noisyhsi)
             # noisyhsi = stripemodel(noisyhsi)
             #noisyhsi = add_noniid_noise(srchsi)
-            n_sigma = sigma/255
-            savemat(os.path.join(dstdir, filename), {'gt': srchsi.transpose(
-                1, 2, 0),'sigma':n_sigma, 'input': noisyhsi.transpose(1, 2, 0)})
+            savemat(os.path.join(dstdir1, filename), {'gt': srchsi.transpose(
+                1, 2, 0), 'input':  noisyhsi.transpose(1, 2, 0)})
+            print(c)
+        except:
+            print(c,'error')
+    for filename in os.listdir(srcdir2):
+        c  = c + 1
+        filepath = os.path.join(srcdir2, filename)
+        try:
+            mat = loadmat(filepath)['data']
+
+            srchsi = mat.transpose(2,0,1)
+            noisyhsi=srchsi.copy()
+
+           # inpaintinghsi, mask = inpaintingmodel(srchsi)
+            noisyhsi = noisemodel(noisyhsi)
+            # noisyhsi = stripemodel(noisyhsi)
+            #noisyhsi = add_noniid_noise(srchsi)
+            savemat(os.path.join(dstdir2, filename), {'gt': srchsi.transpose(
+                1, 2, 0), 'input':  noisyhsi.transpose(1, 2, 0)})
+            print(c)
+        except:
+            print(c,'error')
 
 if __name__ == '__main__':
     addNoise2ICVL()

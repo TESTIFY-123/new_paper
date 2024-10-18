@@ -9,7 +9,7 @@ from utility import *
 import datetime
 import time
 from hsi_setup import Engine, train_options, make_dataset
-import wandb
+# import wandb
 if __name__ == '__main__':
     """Training settings"""
     
@@ -18,10 +18,10 @@ if __name__ == '__main__':
     description='Hyperspectral Image Denoising (Complex noise)')
     opt = train_options(parser)
     print(opt)
-
+    # os.environ["WANDB_API_KEY"]='4b00240cca79b70a0ed3661fbb18d5b38f33f129'
     data = datetime.datetime.now()
-    wandb.init(project="hsi-denoising", entity="name",name=opt.arch+opt.prefix+'-'+str(data.month)+'-'+str(data.day)+'-'+str(data.hour)+':'+str(data.minute),config=opt)  
-    wandb.config.update(parser)
+    # wandb.init(project="hsi-denoising", entity="name",name=opt.arch+opt.prefix+'-'+str(data.month)+'-'+str(data.day)+'-'+str(data.hour)+':'+str(data.minute),config=opt)
+    # wandb.config.update(parser)
 
     """Setup Engine"""
     engine = Engine(opt)
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         HSI2Tensor()
     ])
 
-    icvl_64_31_dir ='/data/HSI_Data/ICVL64_31.db/'
+    icvl_64_31_dir ='/data/HSI_Data/ICVL64_31.db'
     icvl_64_31 = LMDBDataset(icvl_64_31_dir)
     
     target_transform = HSI2Tensor()
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     print('==> Preparing data..')
 
     """Test-Dev"""
-    basefolder = '/data/HSI_Data/icvl_val_gaussian/512_10_70'
+    basefolder = '/data/HSI_Data/test_noise_96_icvl/512_10'
 
     mat_datasets = [MatDataFromFolder(
         basefolder, size=5)]
@@ -79,13 +79,13 @@ if __name__ == '__main__':
     adjust_learning_rate(engine.optimizer, opt.lr)
 
     # from epoch 50 to 100
-    engine.epoch  = 0 
+    engine.epoch  = 0
     while engine.epoch < 100:
         np.random.seed()
 
         if engine.epoch == 50:
             adjust_learning_rate(engine.optimizer, base_lr*0.1)
-        
+        print("training {}".format(engine.epoch))
         engine.train(train_loader,mat_loaders[0])
         engine.validate(mat_loaders[0], 'wdc')
 
@@ -99,5 +99,5 @@ if __name__ == '__main__':
         display_learning_rate(engine.optimizer)
         if engine.epoch % epoch_per_save == 0:
             engine.save_checkpoint()
-    wandb.finish()
+    # wandb.finish()
  

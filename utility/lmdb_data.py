@@ -39,6 +39,15 @@ def create_lmdb_train(
     ksizes = list(ksizes)        
     assert len(scales) == len(strides)
     # calculate the shape of dataset
+
+
+    def print_keys(file_path):
+        with h5py.File(file_path) as file:
+            print(list(file.keys()))
+
+    print_keys(datadir + fns[0])
+
+
     data = load(datadir + fns[0])[matkey]
     data = preprocess(data)
     N = data.shape[0]
@@ -60,10 +69,10 @@ def create_lmdb_train(
         for i, fn in enumerate(fns):
             try:
                 X = load(datadir + fn)[matkey]
+                X = preprocess(X)
             except:
                 print('loading', datadir+fn, 'fail')
                 continue
-            X = preprocess(X)        
             N = X.shape[0]
             for j in range(N):
                 c,h,w = X.shape[1:]
@@ -79,7 +88,8 @@ def create_lmdb_train(
     
 def create_icvl64_31():
     print('create icvl_31...')
-    datadir = '/data/HSI_Data/icvl_train/' # your own data address
+    # datadir = '/data/HSI_Data/icvl_train/' # your own data address
+    datadir = '/data/HSI_Data/Hyperspectral_Project/apex_crop/'
     fns = os.listdir(datadir)
     fns = [fn.split('.')[0]+'.mat' for fn in fns]
     
@@ -94,7 +104,8 @@ def create_icvl64_31():
 
 def createDCmall():
     print('create wdc...')
-    datadir = '/data/HSI_Data/Hyperspectral_Project/WDC/train/'
+    # datadir = '/data/HSI_Data/Hyperspectral_Project/WDC/train/'
+    datadir = '/data/HSI_Data/Hyperspectral_Project/apex_crop/'
     fns = os.listdir(datadir) 
     
     fns = [fn.split('.')[0]+'.mat' for fn in fns]
@@ -123,6 +134,7 @@ def createApex():
 
 if __name__ == '__main__':
     #createApex()
-    createDCmall()
+
     create_icvl64_31()
+    # createDCmall()
     pass

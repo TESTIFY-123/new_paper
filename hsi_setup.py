@@ -93,7 +93,7 @@ def train_options(parser):
     parser.add_argument('--no-cuda', action='store_true', help='disable cuda?')
     parser.add_argument('--no-log', action='store_true',
                         help='disable logger?')
-    parser.add_argument('--threads', type=int, default=1,
+    parser.add_argument('--threads', type=int, default=0,
                         help='number of threads for data loader to use')
     parser.add_argument('--seed', type=int, default=2018,
                         help='random seed to use. default=2018')
@@ -106,9 +106,11 @@ def train_options(parser):
     parser.add_argument('--resumePath', '-rp', type=str,
                         default=None, help='checkpoint to use.')
     parser.add_argument('--test-dir', type=str,
-                        default='/data/HSI_Data/icvl_noise/512_noniid', help='The path of test HSIs')
+                        default='/data/HSI_Data/test_noise_96_icvl/512_10', help='The path of test HSIs')
+    parser.add_argument('--resultdir', type=str,
+                        default='/data/HSI_Data/Hyperspectral_Projec/imgs/default', help='The path of test HSIs')
     parser.add_argument('--dataroot', '-d', type=str,
-                        default='/data/HSI_Data/ICVL64_31.db', help='data root')
+                        default='/root/autodl-tmp/ICVL64_31.db', help='data root')
     parser.add_argument('--clip', type=float, default=1e6)
     parser.add_argument('--gpu-ids', type=str, default='0', help='gpu ids')
 
@@ -400,6 +402,8 @@ class Engine(object):
         train_loss = 0
         train_psnr = 0
         for batch_idx, (inputs, targets) in enumerate(train_loader):
+            if not batch_idx%100:
+                st = time.time()
 
             if not self.opt.no_cuda:
                 inputs, targets = inputs.to(self.device), targets.to(self.device)        
@@ -411,9 +415,9 @@ class Engine(object):
             train_psnr += psnr
             avg_psnr = train_psnr/ (batch_idx+1)
             if not self.opt.no_log:
-                wandb.log({'train_psnr':avg_psnr},step=self.iteration)
-                wandb.log({'train_loss':loss_data},step=self.iteration)
-                wandb.log({'train_avg_loss':avg_loss},step=self.iteration)
+                # wandb.log({'train_psnr':avg_psnr},step=self.iteration)
+                # wandb.log({'train_loss':loss_data},step=self.iteration)
+                # wandb.log({'train_avg_loss':avg_loss},step=self.iteration)
                 self.writer.add_scalar(
                     join(self.prefix, 'train_psnr'), avg_psnr, self.iteration)
                 self.writer.add_scalar(
@@ -426,13 +430,18 @@ class Engine(object):
             progress_bar(batch_idx, len(train_loader), 'AvgLoss: %.4e | Loss: %.4e | Norm: %.4e | Psnr: %4e' 
                          % (avg_loss, loss_data, total_norm,psnr))
 
+            if not batch_idx % 100:
+                ed=time.time()
+                print(batch_idx,'/',len(train_loader),'  ',ed-st)
+
+
         self.epoch += 1
         if not self.opt.no_log:
             self.writer.add_scalar(
                 join(self.prefix, 'train_loss_epoch'), avg_loss, self.epoch)
 
   
-    def test(self, valid_loader, filen):
+    def test(self, valid_loader, filen,save_path = None):
         self.net.eval()
         validate_loss = 0
         total_psnr = 0
@@ -512,14 +521,20 @@ class Engine(object):
                 ergas = 100*np.sqrt(ergas/band)
                 ERGAS.append(ergas)
 
-                # inputs = inputs.squeeze().cpu().detach().numpy()
-                # result = inputs
-                # for band in range(31):
-                #     img = result[band]*255#
-                #     cv2.imwrite(os.path.join(save_path, filenames[batch_idx][:-4] +'_band_'+str(band)+'.jpg'),cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
+                ##官方原本注释的部分
+                if save_path is None:
+                    save_path=self.opt.resultdir
+
+
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+
+                for band in range(31):
+                    img = result[band]*255#
+
+                    cv2.imwrite(os.path.join(save_path, filenames[batch_idx][:-4] +'band_'+str(band)+'.jpg'),cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
                 
                 # scio.savemat('/data/HSI_Data/Hyperspectral_Project/Urban_cvpr2023/'+self.opt.arch+'urban.mat',{'result':result})
-                # save_path = '/data/HSI_Data/Hyperspectral_Project/Urban_cvpr2023/imgs/'
                 # result = np.clip(result,0,1)
                 # for band in range(100,105):
                 #     img = result[band]*255#
@@ -535,10 +550,171 @@ class Engine(object):
                 # print(color_img.shape)
                 # cv2.imwrite(os.path.join(save_path, filenames[batch_idx][:-4] +'color.png'),cv2.cvtColor(color_img.astype(np.uint8),cv2.COLOR_RGB2BGR))
 
+
         print(sum(PSNR)/len(PSNR), sum(RMSE)/len(RMSE), sum(SSIM)/len(SSIM), sum(SAM)/len(SAM), sum(ERGAS)/len(ERGAS))
-        
+        print(PSNR)
         print(avg_psnr, avg_loss,avg_sam)
-        return avg_psnr, avg_loss,avg_sam
+
+        return {'PSNR':sum(PSNR)/len(PSNR), 'RMSE':sum(RMSE)/len(RMSE), 'SSIM':sum(SSIM)/len(SSIM), 'SAM':sum(SAM)/len(SAM), 'ERGAS':sum(ERGAS)/len(ERGAS),'avg_psnr':avg_psnr, 'avg_loss':avg_loss,'avg_sam':avg_sam}
+
+    def test_rotate(self, valid_loader, filen, save_path=None):
+        self.net.eval()
+        validate_loss = 0
+        total_psnr = 0
+        total_sam = 0
+        RMSE = []
+        SSIM = []
+        SAM = []
+        ERGAS = []
+        PSNR = []
+        if os.path.exists(filen):
+            filenames = [
+                fn
+                for fn in os.listdir(filen)
+                if fn.endswith('.mat')
+            ]
+        print('[i] Eval dataset ...')
+
+        print(len(valid_loader))
+        with torch.no_grad():
+            for batch_idx, (inputs, targets) in enumerate(valid_loader):
+                if not self.opt.no_cuda:
+
+                    inputs, targets = inputs.to(self.device), targets.to(self.device)
+
+                def rotate_last_channel_to_first_and_average(input,copy_target):
+                    # 获取通道数
+                    batch, channels,height, width= input.shape
+                    target=copy_target
+                    outputs = []
+                    loss=[]
+                    psnr=[]
+
+                    # 循环通道数次
+                    step=1
+                    for i in range(channels//step):
+                        # 将最后一个通道放到第一个通道位置
+                        rotated_input = torch.cat([input[:, -1*step:, :, :], input[:, :-1*step, :, :]], dim=1)
+                        rotated_target = torch.cat([target[:, -1*step:, :, :],target[:, :-1*step, :, :]],dim=1)
+
+
+                        # 将轮换后的输入传入模型
+                        output, loss_data, _ = self.__step(False, rotated_input,rotated_target)
+
+                        for j in range(i+1):
+                            output = torch.cat([output[:, 1*step:, :, :], output[:, :1*step, :, :]], dim=1)
+
+                        # 将输出保存
+                        outputs.append(output)
+                        psnr.append(cal_bwpsnr(output, copy_target))
+                        loss.append(loss_data)
+
+                        # 更新输入，将轮换后的输入作为下一次迭代的基础
+                        input = rotated_input
+                        target=rotated_target
+
+                    # 将所有输出求平均
+                    final_output = torch.mean(torch.stack(outputs), dim=0)
+                    final_loss=np.mean(loss)
+
+                    return final_output,final_loss
+
+                # 假设 input 是你的输入张量， model 是你现有的模型
+                # 调用该函数
+                outputs, loss_data= rotate_last_channel_to_first_and_average(inputs,targets)
+
+                # outputs, loss_data, _ = self.__step(False, inputs, targets)
+                psnr = np.mean(cal_bwpsnr(outputs, targets))
+                sam = cal_sam(outputs, targets)
+                # outputs = torch.clamp(self.net(inputs), 0, 1)
+                validate_loss += loss_data
+                total_sam += sam
+                avg_loss = validate_loss / (batch_idx + 1)
+                avg_sam = total_sam / (batch_idx + 1)
+
+                total_psnr += psnr
+                avg_psnr = total_psnr / (batch_idx + 1)
+
+                progress_bar(batch_idx, len(valid_loader), 'Loss: %.4e | PSNR: %.4f | AVGPSNR: %.4f '
+                             % (avg_loss, psnr, avg_psnr))
+
+                psnr = []
+                h, w = inputs.shape[-2:]
+                band = inputs.shape[-3]
+                result = outputs.squeeze().cpu().detach().numpy()
+
+                img = targets.squeeze().cpu().detach().numpy()
+
+                for k in range(band):
+                    psnr.append(10 * np.log10((h * w) / sum(sum((result[k] - img[k]) ** 2))))
+                PSNR.append(sum(psnr) / len(psnr))
+
+                mse = sum(sum(sum((result - img) ** 2)))
+                mse /= band * h * w
+                mse *= 255 * 255
+                rmse = np.sqrt(mse)
+                RMSE.append(rmse)
+
+                ssim = []
+                k1 = 0.01
+                k2 = 0.03
+                for k in range(band):
+                    ssim.append((2 * np.mean(result[k]) * np.mean(img[k]) + k1 ** 2) \
+                                * (2 * np.cov(result[k].reshape(h * w), img[k].reshape(h * w))[0, 1] + k2 ** 2) \
+                                / (np.mean(result[k]) ** 2 + np.mean(img[k]) ** 2 + k1 ** 2) \
+                                / (np.var(result[k]) + np.var(img[k]) + k2 ** 2))
+                SSIM.append(sum(ssim) / len(ssim))
+
+                temp = (np.sum(result * img, 0) + np.spacing(1)) \
+                       / (np.sqrt(np.sum(result ** 2, 0) + np.spacing(1))) \
+                       / (np.sqrt(np.sum(img ** 2, 0) + np.spacing(1)))
+                # print(np.arccos(temp)*180/np.pi)
+                sam = np.mean(np.arccos(temp)) * 180 / np.pi
+                SAM.append(sam)
+
+                ergas = 0.
+                for k in range(band):
+                    ergas += np.mean((img[k] - result[k]) ** 2) / np.mean(img[k]) ** 2
+                ergas = 100 * np.sqrt(ergas / band)
+                ERGAS.append(ergas)
+
+                ##官方原本注释的部分
+                if save_path is None:
+                    save_path = self.opt.resultdir
+
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+
+                for band in range(31):
+                    img = result[band] * 255  #
+
+                    cv2.imwrite(os.path.join(save_path, filenames[batch_idx][:-4] + 'band_' + str(band) + '.jpg'),
+                                cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
+
+                # scio.savemat('/data/HSI_Data/Hyperspectral_Project/Urban_cvpr2023/'+self.opt.arch+'urban.mat',{'result':result})
+                # result = np.clip(result,0,1)
+                # for band in range(100,105):
+                #     img = result[band]*255#
+                #     cv2.imwrite(os.path.join(save_path, self.opt.arch +'_band_'+str(band)+'.jpg'),cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
+                # color_img = np.concatenate([result[0][np.newaxis,:],result[105][np.newaxis,:],result[207][np.newaxis,:]],0)
+                # color_img = color_img.transpose((1,2,0))*255
+                # print(color_img.shape)
+                # cv2.imwrite(os.path.join(save_path, self.opt.arch +'color.jpg'),cv2.cvtColor(color_img.astype(np.uint8),cv2.COLOR_RGB2BGR))
+                # result = img
+
+                # color_img = np.concatenate([result[9][np.newaxis,:],result[15][np.newaxis,:],result[28][np.newaxis,:]],0)
+                # color_img = color_img.transpose((1,2,0))*255
+                # print(color_img.shape)
+                # cv2.imwrite(os.path.join(save_path, filenames[batch_idx][:-4] +'color.png'),cv2.cvtColor(color_img.astype(np.uint8),cv2.COLOR_RGB2BGR))
+
+        print(sum(PSNR) / len(PSNR), sum(RMSE) / len(RMSE), sum(SSIM) / len(SSIM), sum(SAM) / len(SAM),
+              sum(ERGAS) / len(ERGAS))
+        print(PSNR)
+        print(avg_psnr, avg_loss, avg_sam)
+
+        return {'PSNR': sum(PSNR) / len(PSNR), 'RMSE': sum(RMSE) / len(RMSE), 'SSIM': sum(SSIM) / len(SSIM),
+                'SAM': sum(SAM) / len(SAM), 'ERGAS': sum(ERGAS) / len(ERGAS), 'avg_psnr': avg_psnr,
+                'avg_loss': avg_loss, 'avg_sam': avg_sam}
 
     def test_patch(self, valid_loader, filen,patch_size=64):
         self.net.eval()
@@ -841,7 +1017,7 @@ class Engine(object):
         
         print(sum(PSNR)/len(PSNR), sum(RMSE)/len(RMSE), sum(SSIM)/len(SSIM), sum(SAM)/len(SAM), sum(ERGAS)/len(ERGAS))
         if not self.opt.no_log:
-            wandb.log({'val_loss_epoch':avg_loss,'val_psnr_epoch':avg_psnr,'val_sam_epoch':avg_sam,'epoch':self.epoch})             
+            # wandb.log({'val_loss_epoch':avg_loss,'val_psnr_epoch':avg_psnr,'val_sam_epoch':avg_sam,'epoch':self.epoch})
             
             self.writer.add_scalar(
                 join(self.prefix, name, 'val_loss_epoch'), avg_loss, self.epoch)

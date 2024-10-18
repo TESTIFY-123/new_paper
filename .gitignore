@@ -1,3 +1,4 @@
 checkpoints/*
 __pycache__*
 wandb
+real_dataset/*

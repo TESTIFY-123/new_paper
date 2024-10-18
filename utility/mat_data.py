@@ -23,7 +23,7 @@ def create_mat_dataset(datadir, fnames, newdir, matkey, func=None, load=h5py.Fil
             data_hwc = data.transpose((2,1,0))
             savemat(join(newdir, fn), {'data': data_hwc})
             try:
-                Image.fromarray(np.array(data_hwc*255,np.uint8)[:,:,20]).save('/data/HSI_Data/icvl_test_512_png/{}.png'.format(os.path.splitext(fn)[0]))
+                Image.fromarray(np.array(data_hwc*255,np.uint8)[:,:,20:40]).save('/data/HSI_Data/icvl_test_512_png/{}.png'.format(os.path.splitext(fn)[0]))
             except Exception as e:
                 print(e)
         except:
@@ -37,12 +37,12 @@ def create_icvl_sr():
     datadir = join(basedir, '/data/HSI_Data/icvl201/')
     newdir = join(basedir, '/media/lmy/LMY/cvpr2023/test_96/')
 
-    #fnames = os.listdir(datadir)
-    f = open("test_list.txt")
-    fnames = f.readlines()
-    for i in range(len(fnames)):
-        fnames[i] = fnames[i].split('\n')[0]
-    f.close()
+    fnames = os.listdir(datadir)
+    # f = open("test_list.txt")
+    # fnames = f.readlines()
+    # for i in range(len(fnames)):
+    #     fnames[i] = fnames[i].split('\n')[0]
+    # f.close()
     print(fnames)
     
     def func(data):
@@ -56,10 +56,10 @@ def create_icvl_sr():
     create_mat_dataset(datadir, fnames, newdir, 'rad', func=func)
 
 def generate_icvl_png():
-    basedir = '/data/HSI_Data/laisdata'
+    basedir = '/data/HSI_Data/test_noise_icvl'
     #/data/HSI_Data/laisdata/sig10_size256
-    datadir = join(basedir, 'sig10_size256')
-    newdir = join(basedir, 'size256_png')
+    datadir = join(basedir, 'icvl_256_iid70')
+    newdir = join(basedir, 'icvl70_input_png')
     fnames = os.listdir(datadir)
     # def func(data):
     #     data = np.rot90(data, k=-1, axes=(1,2))
@@ -76,9 +76,10 @@ def generate_icvl_png():
             #mat = h5py.File(filepath)
             mat = loadmat(filepath)
             #data = func(mat['rad'][...])
-            data = mat['gt']
+            data = mat['input']
             # data = mat['data']
             #data_hwc = data.transpose((2,1,0))
+            data = minmax_normalize(data)
             data_hwc = data
             Image.fromarray(np.array(data_hwc*255,np.uint8)[:,:,20]).save(os.path.join(newdir, '{}.png'.format(os.path.splitext(fn)[0])))
         
@@ -88,7 +89,7 @@ def generate_icvl_png():
 
 
 def copydata():
-    basedir = '/data/HSI_Data/laisdata'
+    basedir = '/data/HSI_Data/test_noise'
     datadir = join(basedir, 'sig10')
     newdir = join(basedir, 'gt')
     fnames = os.listdir(datadir)
@@ -96,13 +97,14 @@ def copydata():
         print('generate data(%d/%d)' %(i+1, len(fnames)))
         filepath = join(datadir, fn)
         mat = loadmat(filepath)
-        data = mat['gt']
+        data = mat['input']
         savemat(join(newdir, fn), {'data': data})
 
 
 
 if __name__ == '__main__':
-    create_icvl_sr()
+    # create_icvl_sr()
     #generate_icvl_png()
     #copydata()
+    generate_icvl_png()
     pass

@@ -86,9 +86,12 @@ def init_params(net, init_type='kn'):
                 nn.init.constant_(m.weight, 1.0)
 
 
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
-
+# _, term_width = os.popen('stty size', 'r').read().split()
+# term_width = int(term_width)
+# term_size = os.get_terminal_size()
+# term_width = term_size.columns
+# print(term_width)
+term_width=180
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()
 begin_time = last_time
